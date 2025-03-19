@@ -4,7 +4,7 @@
  * represented as an array of Pokemon objects and is reset every time
  * the server restarts.
  */
-import { Collection, ObjectId, MongoClient, MongoError } from "mongodb";
+import { Collection, ObjectId, MongoClient, MongoError, Filter } from "mongodb";
 
 // Database connection parameters
 const hostname = "127.0.0.1";
@@ -33,27 +33,74 @@ export const database: Pokemon[] = [{ name: "Pikachu", type: "Electric" }];
  * - Creates the "pokemon" collection if it does not already exist.
  * - Inserts initial Pokemon data if the collection is empty.
  */
-export async function initDB() {}
+export async function initDB() {
+	try {
+		const url = `mongodb://${process.env.MONGO_USER}:${process.env.MONGO_PWD}@${process.env.MONGO_HOST}/`;
+
+		// Initialize MongoDB client
+		client = new MongoClient(url);
+		await client.connect();
+		console.log("Connected to MongoDb");
+
+		const db = client.db(DATABASE_NAME);
+
+		// Get the list of existing collections in the database
+		const collections = await db.listCollections().toArray();
+		const collectionNames = collections.map((col) => col.name);
+
+		// Create "pokemon" collection if it does not exist
+		if (!collectionNames.includes("Pokemon")) {
+			console.log('Creating "pokemon" collection...');
+			await db.createCollection("pokemon");
+		}
+
+		// Reference to the "pokemon" collection
+		pokemonCollection = db.collection("pokemon");
+
+		// Check if the collection is empty and insert initial data if needed
+		const userCount = await pokemonCollection.countDocuments();
+
+		if (userCount === 0) {
+			console.log("Inserting initial pokemons...");
+			await pokemonCollection.insertMany(database);
+		}
+	} catch (err) {
+		if (err instanceof MongoError) {
+			console.error("MongoDB connection failed:", err.message);
+			throw err;
+		} else {
+			console.error("Unexpected error:", err);
+			throw err;
+		}
+	}
+}
 
 /**
  * Retrieves all Pokemon records from the database.
  * @returns The collection of Pokemon objects or undefined if not initialized.
  */
-export async function getAll(): Promise<Collection<Pokemon> | undefined> {}
-
+export async function getAll(): Promise<Collection<Pokemon> | undefined> {
+	return pokemonCollection;
+}
 
 /**
  * Retrieves a single Pokemon by its unique ID.
  * @param id - The ID of the Pokemon to retrieve.
  * @returns The Pokemon object if found, otherwise undefined.
  */
-export async function getOne(id: string): Promise<Pokemon | undefined> {}
+export async function getOne(id: string): Promise<Pokemon | undefined> {
+	const pokemon = await pokemonCollection?.findOne({ _id: new ObjectId(id) });
+	//pokemonCollection? (Optional Chaining) If pokemonCollection is undefined, findOne() will not run, and the function will return undefined.
+	return pokemon!;
+}
 
 /**
  * Adds a new Pokemon to the database.
  * @param pokemon - The Pokemon object to add.
  */
-export async function addOne(pokemon: Pokemon) {}
+export async function addOne(pokemon: Pokemon) {
+	await pokemonCollection?.insertOne(pokemon);
+}
 
 /**
  * Updates an existing Pokémon in the database.
@@ -71,7 +118,15 @@ export async function addOne(pokemon: Pokemon) {}
 export async function updateOnePokemon(
 	pokemonId: string,
 	updatedData: Partial<Pokemon>,
-): Promise<Pokemon | undefined> {}
+): Promise<Pokemon | undefined> {
+	const result = await pokemonCollection?.findOneAndUpdate(
+		{ _id: new ObjectId(pokemonId) },
+		updatedData as Filter<Pokemon>,
+	);
+	const updatedPokemon = result?.value as Pokemon;
+
+	return updatedPokemon!;
+}
 
 /**
  * Deletes a new Pokemon to the database.
