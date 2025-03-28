@@ -125,15 +125,13 @@ export async function updateOnePokemon(
 	);
 	const updatedPokemon = result?.value as Pokemon;
 
-	return updatedPokemon!;
+	return updatedPokemon;
 }
 
 /**
  * Deletes a new Pokemon to the database.
  *  @param id - The ID of the Pokemon to delete.
  */
-export async function deleteOne(pokemonId: string) {
-	const pokemonToDelete = pokemonCollection?.findOne({id: new ObjectId(pokemonId)});
-	
-	await pokemonCollection?.
+export async function deleteOne(id: string) {
+	const result = await pokemonCollection?.deleteOne({_id: new ObjectId(id)})
 }
